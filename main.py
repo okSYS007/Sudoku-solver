@@ -1,20 +1,16 @@
 import cv2
 import os
-from skimage.metrics import structural_similarity as ssim
+import numpy as np
 
 # === Настройки ===
-CELL_SIZE = 90  # Размер ячейки
-TEMPLATE_PATH = "numbersBD"  # Папка с шаблонами 1.png - 9.png
+CELL_SIZE = 90
+TEMPLATE_PATH = "numbersBD"  # Папка с шаблонами: 1.png ... 9.png
+IMAGE_PATH = "image.png"     # Поле судоку
 
 # === Загрузка изображения поля ===
-image = cv2.imread("image.png", cv2.IMREAD_GRAYSCALE)
+image = cv2.imread(IMAGE_PATH, cv2.IMREAD_GRAYSCALE)
 
-# Проверка размера поля
-height, width = image.shape
-if height < 810 or width < 810:
-    raise ValueError("Поле должно быть не менее 810x810 пикселей")
-
-# === Нарезка на 81 ячейку ===
+# Нарезка поля на 81 ячейку
 cells = []
 for i in range(9):
     row = []
@@ -25,26 +21,28 @@ for i in range(9):
         row.append(cell)
     cells.append(row)
 
-# === Загрузка шаблонов цифр ===
+# === Загрузка шаблонов 1-9 ===
 templates = {}
 for i in range(1, 10):
-    tmpl = cv2.imread(os.path.join(TEMPLATE_PATH, f"{i}.png"), cv2.IMREAD_GRAYSCALE)
+    path = os.path.join(TEMPLATE_PATH, f"{i}.png")
+    tmpl = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     if tmpl is not None:
-        templates[i] = cv2.resize(tmpl, (CELL_SIZE, CELL_SIZE))
+        templates[i] = tmpl
 
-# === Сравнение ячейки с шаблонами ===
+# === Сравнение через matchTemplate ===
 def match_digit(cell):
-    cell_resized = cv2.resize(cell, (CELL_SIZE, CELL_SIZE))
     best_digit = ""
-    best_score = 0.7
+    best_score = 0.65  # Чем ближе к 1, тем точнее
     for digit, tmpl in templates.items():
-        score = ssim(cell_resized, tmpl)
-        if score > best_score:
-            best_score = score
+        cell_resized = cv2.resize(cell, tmpl.shape[::-1])
+        res = cv2.matchTemplate(cell_resized, tmpl, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, _ = cv2.minMaxLoc(res)
+        if max_val > best_score:
+            best_score = max_val
             best_digit = digit
     return best_digit
 
-# === Распознавание всех цифр ===
+# === Распознавание всех ячеек ===
 sudoku_grid = []
 for row in cells:
     sudoku_row = []
